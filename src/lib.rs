@@ -1,0 +1,10 @@
+pub mod acrylic;
+pub mod config;
+pub mod hooks;
+pub mod macro_file;
+pub mod model;
+pub mod player;
+pub mod recorder;
+pub mod hotkey;
+pub mod static_clicker;
+pub mod ui;

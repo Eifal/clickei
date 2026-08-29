@@ -1,0 +1,55 @@
+[package]
+name = "clickei"
+version = "1.0.0"
+edition = "2021"
+description = "Clickei — Rust rewrite: native macro recorder (Win32 hooks + SendInput + global hotkeys + acrylic + egui)"
+authors = ["Clickei"]
+default-run = "clickei"
+
+[dependencies]
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_System_LibraryLoader",
+    "Win32_Graphics_Dwm",
+    "Win32_Graphics_Gdi",
+    "Win32_System_SystemServices",
+    "Win32_Media",
+    "Win32_System_Threading",
+    "Win32_System_SystemInformation",
+    "Win32_Security",
+] }
+
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+eframe = { version = "0.28", features = ["default"] }
+egui = "0.28"
+egui_extras = { version = "0.28", features = ["image"] }
+
+dirs = "5.0"
+rfd = "0.14"
+raw-window-handle = "0.6"
+
+log = "0.4"
+env_logger = "0.11"
+
+rand = "0.8"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true
+overflow-checks = false
+
+[profile.dev]
+panic = "abort"
+
+[package.metadata.winres]
+FileDescription = "Clickei"
+ProductName = "Clickei"
+OriginalFilename = "clickei.exe"
+LegalCopyright = "Clickei"

@@ -1,6 +1,6 @@
 # Clickei
 
-Rust rewrite of TinyTask — native macro recorder & auto clicker for Windows.
+Rust rewrite of OP Auto Clicker — native macro recorder & auto clicker for Windows.
 
 ## Features
 

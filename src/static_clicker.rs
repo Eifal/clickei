@@ -193,7 +193,7 @@ where
             return run_normal_clicker(fallback, stop, active, on_tick);
         }
         if cfg.sequence_targets.is_empty() {
-            return (false, Some("Tambahkan minimal 1 target dulu".to_string()));
+            return (false, Some("Add at least 1 target first".to_string()));
         }
         return run_sequence_clicker(cfg, stop, active, on_tick);
     }
@@ -315,7 +315,7 @@ where
 {
     let esc = crate::config::HotkeyCombo::new(0, 0x1B);
     if cfg.sequence_targets.is_empty() {
-        return (false, Some("Tambahkan minimal 1 target dulu".to_string()));
+        return (false, Some("Add at least 1 target first".to_string()));
     }
     let total_rounds_opt = match cfg.repeat {
         RepeatMode::Count(n) => Some(n),

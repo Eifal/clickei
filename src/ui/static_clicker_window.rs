@@ -392,7 +392,7 @@ impl StaticClickerWindow {
                         }
                     });
                     if preset_names.is_empty() {
-                        ui.label(RichText::new("Belum ada preset — isi nama lalu Save").small().color(theme::TEXT_MUTED));
+                        ui.label(RichText::new("No presets yet — enter a name then Save").small().color(theme::TEXT_MUTED));
                     }
                 });
 
@@ -425,7 +425,7 @@ impl StaticClickerWindow {
                     let total = self.total_ms();
                     let mut text = format!("= {} ms total{}", total, if total < 1 { " (clamped to 1ms)" } else { "" });
                     if interval_global_disabled {
-                        text.push_str(" — diabaikan (Multi Target aktif)");
+                        text.push_str(" — overridden (Multi Target active)");
                     }
                     ui.label(
                         RichText::new(text)
@@ -434,7 +434,7 @@ impl StaticClickerWindow {
                     );
                     if interval_global_disabled {
                         ui.label(
-                            RichText::new("Timing dikontrol per-target di Sequence Clicking")
+                            RichText::new("Timing is controlled per-target in Sequence Clicking")
                                 .small()
                                 .color(theme::TEXT_MUTED),
                         );
@@ -621,7 +621,7 @@ impl StaticClickerWindow {
                         }
                         if is_multitarget && self.sequence_targets.is_empty() && self.sequence_enabled {
                             ui.label(
-                                RichText::new("Tambahkan minimal 1 target dulu")
+                                RichText::new("Add at least 1 target first")
                                     .small()
                                     .color(theme::WARNING),
                             );
@@ -703,7 +703,7 @@ impl StaticClickerWindow {
                     ui.add_space(4.0);
                     ui.label(
                         RichText::new(
-                            "Background mode tidak bekerja di semua aplikasi/game — coba Foreground mode kalau target tidak merespons.",
+                            "Background mode doesn't work in all apps/games — try Foreground mode if the target doesn't respond.",
                         )
                         .small()
                         .color(theme::TEXT_MUTED),
@@ -956,16 +956,16 @@ impl StaticClickerWindow {
                 .resizable(false)
                 .collapsible(false)
                 .show(ctx, |ui| {
-                    ui.label(format!("Preset '{}' sudah ada. Timpa?", self.pending_overwrite_name));
-                    ui.label(RichText::new("Preset lama akan hilang.").small().color(theme::WARNING));
+                    ui.label(format!("Preset '{}' already exists. Overwrite?", self.pending_overwrite_name));
+                    ui.label(RichText::new("The previous preset will be overwritten.").small().color(theme::WARNING));
                     ui.horizontal(|ui| {
-                        if ui.button("Ya, Timpa").clicked() {
+                        if ui.button("Yes, Overwrite").clicked() {
                             let name = self.pending_overwrite_name.clone();
                             let preset = self.build_preset(name);
                             self.do_save_preset(preset);
                             self.show_overwrite_confirm = false;
                         }
-                        if ui.button("Batal").clicked() {
+                        if ui.button("Cancel").clicked() {
                             self.show_overwrite_confirm = false;
                         }
                     });
@@ -978,20 +978,20 @@ impl StaticClickerWindow {
         // ---- Preset delete confirm dialog ----
         if self.show_delete_confirm {
             let mut open = self.show_delete_confirm;
-            egui::Window::new("Hapus preset?")
+            egui::Window::new("Delete preset?")
                 .open(&mut open)
                 .resizable(false)
                 .collapsible(false)
                 .show(ctx, |ui| {
-                    ui.label(format!("Hapus preset '{}' ?", self.pending_delete_name));
-                    ui.label(RichText::new("Tidak bisa di-undo.").small().color(theme::WARNING));
+                    ui.label(format!("Delete preset '{}'?", self.pending_delete_name));
+                    ui.label(RichText::new("This cannot be undone.").small().color(theme::WARNING));
                     ui.horizontal(|ui| {
-                        if ui.button("Ya, Hapus").clicked() {
+                        if ui.button("Yes, Delete").clicked() {
                             let name = self.pending_delete_name.clone();
                             self.do_delete_preset(name);
                             self.show_delete_confirm = false;
                         }
-                        if ui.button("Batal").clicked() {
+                        if ui.button("Cancel").clicked() {
                             self.show_delete_confirm = false;
                         }
                     });
@@ -1092,7 +1092,7 @@ impl StaticClickerWindow {
     fn handle_preset_save(&mut self) {
         let name = self.preset_input.trim().to_string();
         if name.is_empty() {
-            self.status = "Nama preset tidak boleh kosong — isi nama dulu".to_string();
+            self.status = "Preset name cannot be empty — enter a name first".to_string();
             self.is_warning = true;
             return;
         }
@@ -1123,13 +1123,13 @@ impl StaticClickerWindow {
             }
         });
         self.preset_selected = name.clone();
-        self.status = format!("Preset '{}' disimpan", name);
+        self.status = format!("Preset '{}' saved", name);
         self.is_warning = false;
     }
 
     fn handle_preset_load(&mut self) {
         if self.clicker.is_running() {
-            self.status = "Stop clicker dulu sebelum load preset".to_string();
+            self.status = "Stop the clicker before loading a preset".to_string();
             self.is_warning = true;
             return;
         }
@@ -1139,7 +1139,7 @@ impl StaticClickerWindow {
             self.preset_input.trim().to_string()
         };
         if name.is_empty() {
-            self.status = "Pilih preset dulu".to_string();
+            self.status = "Select a preset first".to_string();
             self.is_warning = true;
             return;
         }
@@ -1151,7 +1151,7 @@ impl StaticClickerWindow {
             .find(|p| p.name == name)
             .cloned();
         let Some(preset) = preset_opt else {
-            self.status = format!("Preset '{}' tidak ditemukan", name);
+            self.status = format!("Preset '{}' not found", name);
             self.is_warning = true;
             return;
         };
@@ -1160,7 +1160,7 @@ impl StaticClickerWindow {
         self.persist_static_state();
         self.preset_selected = name.clone();
         self.preset_input = name.clone();
-        self.status = format!("Preset '{}' dimuat", name);
+        self.status = format!("Preset '{}' loaded", name);
         self.is_warning = false;
     }
 
@@ -1202,7 +1202,7 @@ impl StaticClickerWindow {
             self.preset_input.trim().to_string()
         };
         if name.is_empty() {
-            self.status = "Pilih preset dulu".to_string();
+            self.status = "Select a preset first".to_string();
             self.is_warning = true;
             return;
         }
@@ -1213,7 +1213,7 @@ impl StaticClickerWindow {
             .iter()
             .any(|p| p.name == name);
         if !exists {
-            self.status = format!("Preset '{}' tidak ditemukan", name);
+            self.status = format!("Preset '{}' not found", name);
             self.is_warning = true;
             return;
         }
@@ -1231,7 +1231,7 @@ impl StaticClickerWindow {
         if self.preset_input == name {
             self.preset_input.clear();
         }
-        self.status = format!("Preset '{}' dihapus", name);
+        self.status = format!("Preset '{}' deleted", name);
         self.is_warning = false;
     }
 
@@ -1247,7 +1247,7 @@ impl StaticClickerWindow {
         }
         // MultiTarget validation: empty list not allowed when enabled
         if self.cursor_mode == CursorMode::MultiTarget && self.sequence_enabled && self.sequence_targets.is_empty() {
-            self.status = "Tambahkan minimal 1 target dulu".to_string();
+            self.status = "Add at least 1 target first".to_string();
             self.is_warning = true;
             return;
         }

@@ -93,6 +93,24 @@ impl Default for CursorMode {
     }
 }
 
+/// Snapshot lengkap untuk preset Static Clicker (semua field static_clicker_* di AppConfig).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct StaticClickerPreset {
+    pub name: String,
+    pub interval_ms: u32,
+    pub interval_jitter_ms: u32,
+    pub position_jitter_px: u32,
+    pub button: MouseButton,
+    pub click_type: ClickType,
+    pub repeat_until_stopped: bool,
+    pub repeat_count: u32,
+    pub cursor_mode: CursorMode,
+    pub foreground: bool,
+    pub bg_title: String,
+    pub sequence_targets: Vec<SequenceTarget>,
+    pub sequence_enabled: bool,
+}
+
 /// One recorded input sample.
 ///
 /// `DelayMs` is serialized as `delayMs` to match the C# property name? We keep
@@ -344,5 +362,38 @@ mod tests {
         assert_eq!(old_cfg.static_clicker_interval_ms, 100);
         assert_eq!(old_cfg.static_clicker_sequence_targets.len(), 0);
         assert!(old_cfg.static_clicker_foreground);
+    }
+
+    #[test]
+    fn static_clicker_preset_serde_roundtrip() {
+        let preset = StaticClickerPreset {
+            name: "BossFarm".to_string(),
+            interval_ms: 1500,
+            interval_jitter_ms: 200,
+            position_jitter_px: 5,
+            button: MouseButton::Left,
+            click_type: ClickType::Double,
+            repeat_until_stopped: false,
+            repeat_count: 10,
+            cursor_mode: CursorMode::Fixed { x: 123, y: 456 },
+            foreground: false,
+            bg_title: "MyGame".to_string(),
+            sequence_targets: vec![
+                SequenceTarget { x: 10, y: 20, clicks: 2, interval_ms: 300 },
+                SequenceTarget { x: 30, y: 40, clicks: 1, interval_ms: 500 },
+            ],
+            sequence_enabled: true,
+        };
+        let json = serde_json::to_string(&preset).unwrap();
+        let back: StaticClickerPreset = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, preset);
+        // Also verify cloning via AppConfig presets field roundtrip
+        let mut cfg = crate::config::AppConfig::default();
+        cfg.static_clicker_presets = vec![preset.clone()];
+        let json2 = serde_json::to_string(&cfg).unwrap();
+        assert!(json2.contains("static_clicker_presets"));
+        let back2: crate::config::AppConfig = serde_json::from_str(&json2).unwrap();
+        assert_eq!(back2.static_clicker_presets.len(), 1);
+        assert_eq!(back2.static_clicker_presets[0], preset);
     }
 }

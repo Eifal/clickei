@@ -271,6 +271,9 @@ pub struct AppConfig {
 
     #[serde(default)]
     pub static_clicker_position_jitter_px: u32,
+
+    #[serde(default)]
+    pub static_clicker_presets: Vec<crate::model::StaticClickerPreset>,
 }
 
 fn default_speed() -> f64 {
@@ -320,6 +323,7 @@ impl Default for AppConfig {
             static_clicker_sequence_enabled: default_true(),
             static_clicker_interval_jitter_ms: 0,
             static_clicker_position_jitter_px: 0,
+            static_clicker_presets: Vec::new(),
         }
     }
 }

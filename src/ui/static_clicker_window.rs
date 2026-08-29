@@ -76,6 +76,14 @@ pub struct StaticClickerWindow {
 
     // Latch: ignore stale/duplicate WM_HOTKEY while the key is still held down
     hk_was_down: bool,
+
+    // Presets
+    preset_selected: String,
+    preset_input: String,
+    show_overwrite_confirm: bool,
+    pending_overwrite_name: String,
+    show_delete_confirm: bool,
+    pending_delete_name: String,
 }
 
 impl Default for StaticClickerWindow {
@@ -147,6 +155,13 @@ impl Default for StaticClickerWindow {
             capturing_hk: false,
             hk_others: (hk_rec, hk_play, hk_stop),
             hk_was_down: false,
+
+            preset_selected: String::new(),
+            preset_input: String::new(),
+            show_overwrite_confirm: false,
+            pending_overwrite_name: String::new(),
+            show_delete_confirm: false,
+            pending_delete_name: String::new(),
         }
     }
 }
@@ -325,6 +340,62 @@ impl StaticClickerWindow {
             egui::ScrollArea::vertical()
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
+                ui.add_space(6.0);
+
+                // --- Presets (Save/Load) — snapshot lengkap static clicker settings ---
+                theme::card_frame().show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(RichText::new("Presets").strong().color(theme::TEXT_PRIMARY));
+                    ui.add_space(4.0);
+                    // Fetch preset names from config
+                    let preset_names: Vec<String> = crate::config::ConfigService::shared()
+                        .lock()
+                        .unwrap()
+                        .static_clicker_presets
+                        .iter()
+                        .map(|p| p.name.clone())
+                        .collect();
+                    ui.horizontal(|ui| {
+                        // ComboBox for existing presets + New
+                        ComboBox::from_id_source("preset_combo")
+                            .selected_text(if self.preset_selected.is_empty() {
+                                "— New Preset —"
+                            } else {
+                                &self.preset_selected
+                            })
+                            .width(140.0)
+                            .show_ui(ui, |ui| {
+                                if ui.selectable_value(&mut self.preset_selected, String::new(), "— New Preset —").clicked() {
+                                    // keep input as is for new preset creation
+                                }
+                                for name in &preset_names {
+                                    if ui.selectable_value(&mut self.preset_selected, name.clone(), name).clicked() {
+                                        self.preset_input = name.clone();
+                                    }
+                                }
+                            });
+                        // TextEdit for new preset name
+                        let name_edit = egui::TextEdit::singleline(&mut self.preset_input)
+                            .hint_text("preset name")
+                            .desired_width(120.0);
+                        ui.add(name_edit);
+                        if ui.button("💾 Save").clicked() {
+                            self.handle_preset_save();
+                        }
+                        let load_enabled = !preset_names.is_empty();
+                        if ui.add_enabled(load_enabled, egui::Button::new("📂 Load")).clicked() {
+                            self.handle_preset_load();
+                        }
+                        let delete_enabled = !self.preset_selected.is_empty() || !self.preset_input.trim().is_empty();
+                        if ui.add_enabled(delete_enabled && !preset_names.is_empty(), egui::Button::new("🗑 Delete")).clicked() {
+                            self.handle_preset_delete();
+                        }
+                    });
+                    if preset_names.is_empty() {
+                        ui.label(RichText::new("Belum ada preset — isi nama lalu Save").small().color(theme::TEXT_MUTED));
+                    }
+                });
+
                 ui.add_space(6.0);
 
                 // --- Click interval ---
@@ -877,6 +948,59 @@ impl StaticClickerWindow {
             }
         }
 
+        // ---- Preset overwrite confirm dialog ----
+        if self.show_overwrite_confirm {
+            let mut open = self.show_overwrite_confirm;
+            egui::Window::new("Overwrite preset?")
+                .open(&mut open)
+                .resizable(false)
+                .collapsible(false)
+                .show(ctx, |ui| {
+                    ui.label(format!("Preset '{}' sudah ada. Timpa?", self.pending_overwrite_name));
+                    ui.label(RichText::new("Preset lama akan hilang.").small().color(theme::WARNING));
+                    ui.horizontal(|ui| {
+                        if ui.button("Ya, Timpa").clicked() {
+                            let name = self.pending_overwrite_name.clone();
+                            let preset = self.build_preset(name);
+                            self.do_save_preset(preset);
+                            self.show_overwrite_confirm = false;
+                        }
+                        if ui.button("Batal").clicked() {
+                            self.show_overwrite_confirm = false;
+                        }
+                    });
+                });
+            if !open {
+                self.show_overwrite_confirm = false;
+            }
+        }
+
+        // ---- Preset delete confirm dialog ----
+        if self.show_delete_confirm {
+            let mut open = self.show_delete_confirm;
+            egui::Window::new("Hapus preset?")
+                .open(&mut open)
+                .resizable(false)
+                .collapsible(false)
+                .show(ctx, |ui| {
+                    ui.label(format!("Hapus preset '{}' ?", self.pending_delete_name));
+                    ui.label(RichText::new("Tidak bisa di-undo.").small().color(theme::WARNING));
+                    ui.horizontal(|ui| {
+                        if ui.button("Ya, Hapus").clicked() {
+                            let name = self.pending_delete_name.clone();
+                            self.do_delete_preset(name);
+                            self.show_delete_confirm = false;
+                        }
+                        if ui.button("Batal").clicked() {
+                            self.show_delete_confirm = false;
+                        }
+                    });
+                });
+            if !open {
+                self.show_delete_confirm = false;
+            }
+        }
+
         // Keep the UI awake so WM_HOTKEY events are drained even when the user
         // is idle (egui sleeps without input — global hotkeys would feel dead)
         // Faster repaint while sequence is running so active indicator has no delay
@@ -941,6 +1065,174 @@ impl StaticClickerWindow {
             cfg.static_clicker_interval_jitter_ms = interval_jitter_ms;
             cfg.static_clicker_position_jitter_px = position_jitter_px;
         });
+    }
+
+    // -----------------------------------------------------------------------
+    // Presets — build / save / load / delete
+    // -----------------------------------------------------------------------
+
+    fn build_preset(&self, name: String) -> crate::model::StaticClickerPreset {
+        crate::model::StaticClickerPreset {
+            name,
+            interval_ms: self.total_ms().min(u32::MAX as u64) as u32,
+            interval_jitter_ms: self.interval_jitter_ms.clamp(0, 9999) as u32,
+            position_jitter_px: self.position_jitter_px.clamp(0, 20) as u32,
+            button: self.button,
+            click_type: self.click_type,
+            repeat_until_stopped: self.repeat_until_stopped,
+            repeat_count: self.repeat_count.max(1) as u32,
+            cursor_mode: self.cursor_mode,
+            foreground: self.foreground,
+            bg_title: self.bg_title.clone(),
+            sequence_targets: self.sequence_targets.clone(),
+            sequence_enabled: self.sequence_enabled,
+        }
+    }
+
+    fn handle_preset_save(&mut self) {
+        let name = self.preset_input.trim().to_string();
+        if name.is_empty() {
+            self.status = "Nama preset tidak boleh kosong — isi nama dulu".to_string();
+            self.is_warning = true;
+            return;
+        }
+        // Check duplicate
+        let exists = crate::config::ConfigService::shared()
+            .lock()
+            .unwrap()
+            .static_clicker_presets
+            .iter()
+            .any(|p| p.name == name);
+        if exists {
+            self.pending_overwrite_name = name;
+            self.show_overwrite_confirm = true;
+        } else {
+            let preset = self.build_preset(name);
+            self.do_save_preset(preset);
+        }
+    }
+
+    fn do_save_preset(&mut self, preset: crate::model::StaticClickerPreset) {
+        let name = preset.name.clone();
+        let preset_clone = preset.clone();
+        let _ = crate::config::ConfigService::update_and_save(|cfg| {
+            if let Some(pos) = cfg.static_clicker_presets.iter().position(|p| p.name == preset_clone.name) {
+                cfg.static_clicker_presets[pos] = preset_clone.clone();
+            } else {
+                cfg.static_clicker_presets.push(preset_clone.clone());
+            }
+        });
+        self.preset_selected = name.clone();
+        self.status = format!("Preset '{}' disimpan", name);
+        self.is_warning = false;
+    }
+
+    fn handle_preset_load(&mut self) {
+        if self.clicker.is_running() {
+            self.status = "Stop clicker dulu sebelum load preset".to_string();
+            self.is_warning = true;
+            return;
+        }
+        let name = if !self.preset_selected.is_empty() {
+            self.preset_selected.clone()
+        } else {
+            self.preset_input.trim().to_string()
+        };
+        if name.is_empty() {
+            self.status = "Pilih preset dulu".to_string();
+            self.is_warning = true;
+            return;
+        }
+        let preset_opt = crate::config::ConfigService::shared()
+            .lock()
+            .unwrap()
+            .static_clicker_presets
+            .iter()
+            .find(|p| p.name == name)
+            .cloned();
+        let Some(preset) = preset_opt else {
+            self.status = format!("Preset '{}' tidak ditemukan", name);
+            self.is_warning = true;
+            return;
+        };
+        self.apply_preset(&preset);
+        // Persist as active config as well
+        self.persist_static_state();
+        self.preset_selected = name.clone();
+        self.preset_input = name.clone();
+        self.status = format!("Preset '{}' dimuat", name);
+        self.is_warning = false;
+    }
+
+    fn apply_preset(&mut self, preset: &crate::model::StaticClickerPreset) {
+        // interval split h/m/s/ms
+        let total = preset.interval_ms as u64;
+        self.hours = (total / 3_600_000) as i32;
+        let rem = total % 3_600_000;
+        self.mins = (rem / 60_000) as i32;
+        let rem2 = rem % 60_000;
+        self.secs = (rem2 / 1000) as i32;
+        self.millis = (rem2 % 1000) as i32;
+        self.interval_jitter_ms = (preset.interval_jitter_ms as i32).clamp(0, 9999);
+        self.position_jitter_px = (preset.position_jitter_px as i32).clamp(0, 20);
+        self.button = preset.button;
+        self.click_type = preset.click_type;
+        self.repeat_until_stopped = preset.repeat_until_stopped;
+        self.repeat_count = (preset.repeat_count as i32).clamp(1, 999999);
+        self.cursor_mode = preset.cursor_mode;
+        if let CursorMode::Fixed { x, y } = preset.cursor_mode {
+            self.fixed_x = x;
+            self.fixed_y = y;
+        }
+        self.foreground = preset.foreground;
+        self.bg_title = preset.bg_title.clone();
+        self.bg_hwnd = if !preset.foreground && !preset.bg_title.is_empty() {
+            crate::hooks::find_window_by_title(&preset.bg_title)
+        } else {
+            None
+        };
+        self.sequence_targets = preset.sequence_targets.clone();
+        self.sequence_enabled = preset.sequence_enabled;
+    }
+
+    fn handle_preset_delete(&mut self) {
+        let name = if !self.preset_selected.is_empty() {
+            self.preset_selected.clone()
+        } else {
+            self.preset_input.trim().to_string()
+        };
+        if name.is_empty() {
+            self.status = "Pilih preset dulu".to_string();
+            self.is_warning = true;
+            return;
+        }
+        let exists = crate::config::ConfigService::shared()
+            .lock()
+            .unwrap()
+            .static_clicker_presets
+            .iter()
+            .any(|p| p.name == name);
+        if !exists {
+            self.status = format!("Preset '{}' tidak ditemukan", name);
+            self.is_warning = true;
+            return;
+        }
+        self.pending_delete_name = name;
+        self.show_delete_confirm = true;
+    }
+
+    fn do_delete_preset(&mut self, name: String) {
+        let _ = crate::config::ConfigService::update_and_save(|cfg| {
+            cfg.static_clicker_presets.retain(|p| p.name != name);
+        });
+        if self.preset_selected == name {
+            self.preset_selected.clear();
+        }
+        if self.preset_input == name {
+            self.preset_input.clear();
+        }
+        self.status = format!("Preset '{}' dihapus", name);
+        self.is_warning = false;
     }
 
     fn start_clicker(&mut self) {

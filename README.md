@@ -2,6 +2,8 @@
 
 Rust rewrite of OP Auto Clicker — native macro recorder & auto clicker for Windows.
 
+![Clickei Screenshot](assets/image.png)
+
 ## Features
 
 - **Recording** — global low-level hooks (WH_MOUSE_LL / WH_KEYBOARD_LL), SendInput playback with speed / loop / interval.

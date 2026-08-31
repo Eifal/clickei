@@ -198,12 +198,24 @@ fn main() -> eframe::Result<()> {
         }
     };
 
+    let icon = {
+        let bytes = include_bytes!("icons/icon_256.png");
+        let image = image::load_from_memory(bytes).expect("failed to load icon").into_rgba8();
+        let (width, height) = image.dimensions();
+        egui::IconData {
+            rgba: image.into_raw(),
+            width,
+            height,
+        }
+    };
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([520.0, 460.0])
             .with_min_inner_size([340.0, 300.0])
             .with_resizable(true)
-            .with_decorations(true),
+            .with_decorations(true)
+            .with_icon(icon),
         ..Default::default()
     };
 
